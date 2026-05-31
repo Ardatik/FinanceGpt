@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 import re
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 import httpx
 from pydantic import BaseModel, Field
 
@@ -118,9 +118,26 @@ async def request_sbp_payment(payload: SbpPaymentRequestIn) -> dict:
         "status": "confirmed",
         "paid_at": datetime.now(timezone.utc).isoformat(),
     }
-    async with httpx.AsyncClient(timeout=8) as client:
-        response = await client.post(payload.callback_url, json=callback_payload)
-        response.raise_for_status()
+    try:
+        timeout = httpx.Timeout(20.0, connect=5.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(payload.callback_url, json=callback_payload)
+            response.raise_for_status()
+    except httpx.TimeoutException as exc:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="backend callback не ответил вовремя",
+        ) from exc
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"backend callback вернул HTTP {exc.response.status_code}",
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="не удалось вызвать backend callback",
+        ) from exc
     return {
         "payment_id": payload.payment_id,
         "status": "sent_to_backend",

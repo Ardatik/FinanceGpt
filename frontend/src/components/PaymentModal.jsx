@@ -171,6 +171,11 @@ export default function PaymentModal({ open, onClose, token, onDone, autoScan = 
     streamRef.current = null;
   }
 
+  function openBank(paymentData) {
+    if (!paymentData?.deeplink) return;
+    window.location.assign(paymentData.deeplink);
+  }
+
   if (!open) return null;
 
   async function approvePayment() {
@@ -188,8 +193,9 @@ export default function PaymentModal({ open, onClose, token, onDone, autoScan = 
         body: { bank, qr_payload: qrPayload, amount_hint: amount ? Number(amount) : null }
       });
       setPayment(confirmed);
-      setMessage("Оплата одобрена. Backend получил mock-чек от payment_service и записал расходы.");
+      setMessage("Оплата одобрена. Backend получил mock-чек от payment_service и записал расходы. Открываем банк...");
       onDone?.();
+      openBank(confirmed);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -278,6 +284,11 @@ export default function PaymentModal({ open, onClose, token, onDone, autoScan = 
                   </p>
                 ))}
               </div>
+            )}
+            {payment.deeplink && (
+              <button type="button" className="btn-secondary mt-3 px-3 py-1.5" onClick={() => openBank(payment)}>
+                Открыть банк
+              </button>
             )}
           </div>
         )}
